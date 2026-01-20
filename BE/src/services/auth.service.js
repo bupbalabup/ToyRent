@@ -1,15 +1,30 @@
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
-import User from '../models/user.model.js';
-import env from '../config/env.js';
-import AppError from '../utils/appError.js';
+require('dotenv/config');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const User = require('../models/user.model.js');
+
+class AppError extends Error {
+  constructor(message, statusCode) {
+    super(message);
+    this.statusCode = statusCode;
+    this.isOperational = true;
+    Error.captureStackTrace(this, this.constructor);
+  }
+}
+
+const jwtSecret = process.env.JWT_SECRET;
+const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '7d';
+
+if (!jwtSecret) {
+  throw new Error('JWT_SECRET is required');
+}
 
 const signToken = (userId) =>
-  jwt.sign({ userId }, env.jwtSecret, {
-    expiresIn: env.jwtExpiresIn
+  jwt.sign({ userId }, jwtSecret, {
+    expiresIn: jwtExpiresIn
   });
 
-export const registerUser = async ({ name, email, phone, password, avatar }) => {
+const registerUser = async ({ name, email, phone, password }) => {
   const existingUser = await User.findOne({ email: email.toLowerCase() });
 
   if (existingUser) {
@@ -22,8 +37,7 @@ export const registerUser = async ({ name, email, phone, password, avatar }) => 
     name,
     email,
     phone,
-    password: hashedPassword,
-    avatar
+    password: hashedPassword
   });
 
   const token = signToken(user._id);
@@ -34,7 +48,7 @@ export const registerUser = async ({ name, email, phone, password, avatar }) => 
   return { user: safeUser, token };
 };
 
-export const loginUser = async ({ email, password }) => {
+const loginUser = async ({ email, password }) => {
   const user = await User.findOne({ email: email.toLowerCase() });
 
   if (!user) {
@@ -54,3 +68,5 @@ export const loginUser = async ({ email, password }) => {
 
   return { user: safeUser, token };
 };
+
+module.exports = { registerUser, loginUser };

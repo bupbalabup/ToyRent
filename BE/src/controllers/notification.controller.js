@@ -1,26 +1,41 @@
-import Notification from '../models/notification.model.js';
-import asyncHandler from '../utils/asyncHandler.js';
-import { sendResponse } from '../utils/apiResponse.js';
-import AppError from '../utils/appError.js';
+const Notification = require('../models/notification.model.js');
 
-export const getMyNotifications = asyncHandler(async (req, res) => {
-  const notifications = await Notification.find({ userId: req.user._id }).sort({ createdAt: -1 });
-  return sendResponse(res, 200, 'Notifications fetched', { notifications });
-});
-
-export const markNotificationAsRead = asyncHandler(async (req, res) => {
-  const notification = await Notification.findById(req.params.id);
-
-  if (!notification) {
-    throw new AppError('Notification not found', 404);
+const getMyNotifications = async (req, res, next) => {
+  try {
+    const notifications = await Notification.find({ userId: req.user._id }).sort({ createdAt: -1 });
+    return res.status(200).json({
+      success: true,
+      message: 'Notifications fetched',
+      data: { notifications }
+    });
+  } catch (error) {
+    return next(error);
   }
+};
 
-  if (notification.userId.toString() !== req.user._id.toString()) {
-    throw new AppError('Forbidden', 403);
+const markNotificationAsRead = async (req, res, next) => {
+  try {
+    const notification = await Notification.findById(req.params.id);
+
+    if (!notification) {
+      return res.status(404).json({ success: false, message: 'Notification not found', data: {} });
+    }
+
+    if (notification.userId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Forbidden', data: {} });
+    }
+
+    notification.isRead = true;
+    await notification.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Notification marked as read',
+      data: { notification }
+    });
+  } catch (error) {
+    return next(error);
   }
+};
 
-  notification.isRead = true;
-  await notification.save();
-
-  return sendResponse(res, 200, 'Notification marked as read', { notification });
-});
+module.exports = { getMyNotifications, markNotificationAsRead };

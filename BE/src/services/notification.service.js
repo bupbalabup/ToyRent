@@ -1,6 +1,6 @@
-import Notification from '../models/notification.model.js';
+const Notification = require('../models/notification.model.js');
 
-export const createOrderConfirmedNotification = async (order, session = null) => {
+const createOrderConfirmedNotification = async (order, session = null) => {
   const payload = {
     userId: order.userId,
     title: 'Order Confirmed',
@@ -14,3 +14,5 @@ export const createOrderConfirmedNotification = async (order, session = null) =>
 
   await Notification.create(payload);
 };
+
+module.exports = { createOrderConfirmedNotification };

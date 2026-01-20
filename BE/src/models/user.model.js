@@ -1,26 +1,6 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const { Schema } = mongoose;
-
-const addressSchema = new Schema(
-  {
-    fullName: { type: String, trim: true },
-    phone: { type: String, trim: true },
-    street: { type: String, trim: true },
-    district: { type: String, trim: true },
-    city: { type: String, trim: true }
-  },
-  { _id: false }
-);
-
-const cartItemSchema = new Schema(
-  {
-    toyId: { type: Schema.Types.ObjectId, ref: 'Toy', required: true },
-    quantity: { type: Number, required: true, min: 1, default: 1 },
-    rentalDays: { type: Number, required: true, min: 1, default: 1 }
-  },
-  { _id: false }
-);
 
 const userSchema = new Schema(
   {
@@ -33,17 +13,20 @@ const userSchema = new Schema(
       trim: true,
       match: [/^\S+@\S+\.\S+$/, 'Invalid email format']
     },
-    phone: { type: String, trim: true, index: true },
+    phone: { type: String, trim: true },
     password: { type: String, required: true },
-    avatar: { type: String, trim: true },
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
-    address: { type: addressSchema, default: undefined },
-    isVerified: { type: Boolean, default: false },
-    cart: { type: [cartItemSchema], default: [] }
-  },
-  { timestamps: true }
+    createdAt: {
+      type: Date,
+      default: Date.now
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }
 );
 
 const User = mongoose.model('User', userSchema);
 
-export default User;
+module.exports = User;

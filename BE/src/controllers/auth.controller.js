@@ -1,30 +1,53 @@
-import asyncHandler from '../utils/asyncHandler.js';
-import { sendResponse } from '../utils/apiResponse.js';
-import AppError from '../utils/appError.js';
-import { registerUser, loginUser } from '../services/auth.service.js';
+const { registerUser, loginUser } = require('../services/auth.service.js');
 
-export const register = asyncHandler(async (req, res) => {
-  const { name, email, phone, password, avatar } = req.body;
+const register = async (req, res, next) => {
+  try {
+    const { name, email, phone, password } = req.body;
 
-  if (!name || !email || !password) {
-    throw new AppError('name, email and password are required', 400);
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'name, email and password are required',
+        data: {}
+      });
+    }
+
+    const data = await registerUser({ name, email, phone, password });
+    return res.status(201).json({ success: true, message: 'Register successful', data });
+  } catch (error) {
+    return next(error);
   }
+};
 
-  const data = await registerUser({ name, email, phone, password, avatar });
-  return sendResponse(res, 201, 'Register successful', data);
-});
+const login = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
 
-export const login = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'email and password are required',
+        data: {}
+      });
+    }
 
-  if (!email || !password) {
-    throw new AppError('email and password are required', 400);
+    const data = await loginUser({ email, password });
+    return res.status(200).json({ success: true, message: 'Login successful', data });
+  } catch (error) {
+    return next(error);
   }
+};
 
-  const data = await loginUser({ email, password });
-  return sendResponse(res, 200, 'Login successful', data);
-});
+const getProfile = async (req, res, next) => {
+  try {
+    return res.status(200).json({
+      success: true,
+      message: 'Profile fetched',
+      data: { user: req.user }
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
 
-export const getProfile = asyncHandler(async (req, res) =>
-  sendResponse(res, 200, 'Profile fetched', { user: req.user })
-);
+module.exports = { register, login, getProfile };

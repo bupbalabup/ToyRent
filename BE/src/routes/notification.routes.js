@@ -1,14 +1,10 @@
-import { Router } from 'express';
-import {
-  getMyNotifications,
-  markNotificationAsRead
-} from '../controllers/notification.controller.js';
-import { protect } from '../middlewares/auth.middleware.js';
-import validateObjectId from '../middlewares/validateObjectId.middleware.js';
+const { Router } = require('express');
+const { getMyNotifications, markNotificationAsRead } = require('../controllers/notification.controller.js');
+const { protect } = require('../middlewares/auth.middleware.js');
 
 const router = Router();
 
 router.get('/', protect, getMyNotifications);
-router.patch('/:id/read', protect, validateObjectId('id'), markNotificationAsRead);
+router.patch('/:id/read', protect, markNotificationAsRead);
 
-export default router;
+module.exports = router;

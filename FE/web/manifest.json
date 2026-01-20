@@ -1,6 +1,6 @@
 {
-    "name": "toyflix_app",
-    "short_name": "toyflix_app",
+    "name": "rent_toys",
+    "short_name": "rent_toys",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

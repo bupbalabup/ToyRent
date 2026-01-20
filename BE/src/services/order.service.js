@@ -1,15 +1,37 @@
-import mongoose from 'mongoose';
-import Order from '../models/order.model.js';
-import Toy from '../models/toy.model.js';
-import Voucher from '../models/voucher.model.js';
-import RentalSchedule from '../models/rentalSchedule.model.js';
-import AppError from '../utils/appError.js';
-import { normalizeDateToUTC, enumerateDatesUTC } from '../utils/date.js';
-import { createOrderConfirmedNotification } from './notification.service.js';
+const mongoose = require('mongoose');
+const Order = require('../models/order.model.js');
+const Toy = require('../models/toy.model.js');
+const RentalSchedule = require('../models/rentalSchedule.model.js');
+const { createOrderConfirmedNotification } = require('./notification.service.js');
 
-const VALID_PAYMENT_METHODS = ['cash', 'momo', 'sepay'];
-const VALID_FULFILLMENT_TYPES = ['pickup', 'delivery'];
+class AppError extends Error {
+  constructor(message, statusCode) {
+    super(message);
+    this.statusCode = statusCode;
+    this.isOperational = true;
+    Error.captureStackTrace(this, this.constructor);
+  }
+}
 
+const normalizeDateToUTC = (dateInput) => {
+  const date = new Date(dateInput);
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+};
+
+const enumerateDatesUTC = (startDate, endDate) => {
+  const dates = [];
+  const cursor = normalizeDateToUTC(startDate);
+  const normalizedEnd = normalizeDateToUTC(endDate);
+
+  while (cursor <= normalizedEnd) {
+    dates.push(new Date(cursor));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return dates;
+};
+
+const VALID_PAYMENT_METHODS = ['cash', 'paypal'];
 const reserveQuantityForDate = async ({ session, toyId, date, quantity, stock }) => {
   const maxAllowedBooked = stock - quantity;
 
@@ -55,14 +77,12 @@ const reserveQuantityForDate = async ({ session, toyId, date, quantity, stock })
   }
 };
 
-export const createOrderWithTransaction = async ({
+const createOrderWithTransaction = async ({
   userId,
   items,
   rentalStartDate,
   rentalEndDate,
-  voucherCode,
-  fulfillmentType = 'pickup',
-  shippingAddress,
+  rentalDurationHours,
   paymentMethod = 'cash'
 }) => {
   if (!Array.isArray(items) || items.length === 0) {
@@ -71,21 +91,6 @@ export const createOrderWithTransaction = async ({
 
   if (!VALID_PAYMENT_METHODS.includes(paymentMethod)) {
     throw new AppError('Invalid paymentMethod', 400);
-  }
-
-  if (!VALID_FULFILLMENT_TYPES.includes(fulfillmentType)) {
-    throw new AppError('Invalid fulfillmentType', 400);
-  }
-
-  if (fulfillmentType === 'delivery') {
-    const requiredAddressFields = ['fullName', 'phone', 'province', 'district', 'ward', 'street'];
-    const missingAddressField = requiredAddressFields.find(
-      (field) => !shippingAddress || !String(shippingAddress[field] || '').trim()
-    );
-
-    if (missingAddressField) {
-      throw new AppError(`shippingAddress.${missingAddressField} is required for delivery`, 400);
-    }
   }
 
   const startDate = normalizeDateToUTC(rentalStartDate);
@@ -99,8 +104,12 @@ export const createOrderWithTransaction = async ({
     throw new AppError('rentalEndDate must be greater than or equal to rentalStartDate', 400);
   }
 
+  const normalizedRentalDurationHours = Number(rentalDurationHours);
+  if (!Number.isFinite(normalizedRentalDurationHours) || normalizedRentalDurationHours < 1) {
+    throw new AppError('rentalDurationHours must be greater than 0', 400);
+  }
   const dates = enumerateDatesUTC(startDate, endDate);
-  const rentalDays = dates.length;
+
   const session = await mongoose.startSession();
   let createdOrder = null;
 
@@ -121,6 +130,7 @@ export const createOrderWithTransaction = async ({
 
       const orderItems = [];
       let totalPrice = 0;
+      let depositAmountTotal = 0;
 
       for (const requestItem of items) {
         const toy = toyMap.get(requestItem.toyId.toString());
@@ -128,6 +138,12 @@ export const createOrderWithTransaction = async ({
 
         if (!Number.isInteger(quantity) || quantity < 1) {
           throw new AppError('Invalid item quantity', 400);
+        }
+
+        const effectiveRentalPrice = Number(toy.rentalPrice);
+        const maxDuration = Number(toy.maxRentalDuration || 24);
+        if (normalizedRentalDurationHours > maxDuration) {
+          throw new AppError(`Rental duration exceeds maxRentalDuration for ${toy.name}`, 400);
         }
 
         for (const date of dates) {
@@ -140,61 +156,29 @@ export const createOrderWithTransaction = async ({
           });
         }
 
-        const subtotal = toy.rentalPricePerDay * rentalDays * quantity;
-        totalPrice += subtotal;
+        const itemDeposit = Number(toy.depositAmount || 0) * quantity;
+        const itemTotal = effectiveRentalPrice * normalizedRentalDurationHours * quantity;
+
+        totalPrice += itemTotal;
+        depositAmountTotal += itemDeposit;
 
         orderItems.push({
           toyId: toy._id,
-          name: toy.name,
-          image: toy.images?.[0] || '',
-          rentalPricePerDay: toy.rentalPricePerDay,
-          rentalDays,
-          quantity,
-          subtotal
+          rentalPrice: effectiveRentalPrice,
+          rentalDurationHours: normalizedRentalDurationHours,
+          quantity
         });
       }
-
-      let discountAmount = 0;
-      let voucherId = undefined;
-
-      if (voucherCode) {
-        const normalizedCode = String(voucherCode).trim().toUpperCase();
-
-        const voucher = await Voucher.findOne({
-          code: normalizedCode,
-          isActive: true,
-          expiredAt: { $gte: new Date() },
-          $expr: { $lt: ['$usedCount', '$usageLimit'] }
-        }).session(session);
-
-        if (!voucher) {
-          throw new AppError('Invalid or expired voucher', 400);
-        }
-
-        if (totalPrice < voucher.minOrderValue) {
-          throw new AppError('Order does not meet voucher minimum value', 400);
-        }
-
-        discountAmount = Math.min((totalPrice * voucher.discountPercent) / 100, voucher.maxDiscount);
-        voucherId = voucher._id;
-
-        await Voucher.updateOne({ _id: voucher._id }, { $inc: { usedCount: 1 } }, { session });
-      }
-
-      const finalTotal = Math.max(totalPrice - discountAmount, 0);
+      const finalTotal = totalPrice + depositAmountTotal;
 
       const [order] = await Order.create(
         [
           {
             userId,
             items: orderItems,
-            rentalStartDate: startDate,
-            rentalEndDate: endDate,
-            totalPrice: finalTotal,
-            discountAmount,
-            voucherId,
-            fulfillmentType,
-            shippingAddress: fulfillmentType === 'delivery' ? shippingAddress : undefined,
+            totalAmount: finalTotal,
+            depositAmount: depositAmountTotal,
+            totalPrice,
             orderStatus: 'pending',
             paymentStatus: 'pending',
             paymentMethod
@@ -212,7 +196,7 @@ export const createOrderWithTransaction = async ({
   return createdOrder;
 };
 
-export const updateOrderStatusWithNotification = async ({ orderId, status }) => {
+const updateOrderStatusWithNotification = async ({ orderId, status }) => {
   const order = await Order.findById(orderId);
 
   if (!order) {
@@ -220,6 +204,7 @@ export const updateOrderStatusWithNotification = async ({ orderId, status }) => 
   }
 
   order.orderStatus = status;
+  order.updatedAt = new Date();
 
   await order.save();
 
@@ -229,3 +214,5 @@ export const updateOrderStatusWithNotification = async ({ orderId, status }) => 
 
   return order;
 };
+
+module.exports = { createOrderWithTransaction, updateOrderStatusWithNotification };

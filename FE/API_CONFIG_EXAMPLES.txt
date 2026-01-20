@@ -1,0 +1,51 @@
+// API Configuration Examples
+// Update lib/config/api_config.dart based on your environment
+
+// ========================================
+// DEVELOPMENT (LOCAL - Android Emulator)
+// ========================================
+// static const String _baseUrlAndroid = 'http://10.0.2.2:3000/api';
+// Reason: Special alias to access host machine from Android emulator
+
+// ========================================
+// DEVELOPMENT (LOCAL - iOS Simulator)
+// ========================================
+// static const String _baseUrlIOS = 'http://127.0.0.1:3000/api';
+// Reason: Direct localhost access from iOS simulator
+
+// ========================================
+// DEVELOPMENT (Physical Device - Same Network)
+// ========================================
+// Find your computer IP:
+// Windows: ipconfig | findstr IPv4
+// Mac/Linux: ifconfig | grep inet
+// 
+// Example: If your IP is 192.168.1.100
+// static const String _baseUrlAndroid = 'http://192.168.1.100:3000/api';
+// static const String _baseUrlIOS = 'http://192.168.1.100:3000/api';
+
+// ========================================
+// PRODUCTION (Cloud/Server)
+// ========================================
+// Backend deployed to: https://api.rentoys.com
+// 
+// Update:
+// static const String _baseUrlAndroid = 'https://api.rentoys.com/api';
+// static const String _baseUrlIOS = 'https://api.rentoys.com/api';
+
+// ========================================
+// NETWORK SETUP CHECKLIST
+// ========================================
+// 1. Backend running on correct port (3000)
+// 2. Device/emulator on same network as backend
+// 3. Firewall allows port 3000
+// 4. Correct IP address in config
+// 5. Test connectivity: curl or Postman
+
+// ========================================
+// QUICK START
+// ========================================
+// For most developers:
+// 1. Android Emulator: 10.0.2.2:3000
+// 2. iOS Simulator: 127.0.0.1:3000
+// 3. Physical: 192.168.x.x:3000 (same network)

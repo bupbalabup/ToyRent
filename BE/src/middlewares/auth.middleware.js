@@ -1,9 +1,23 @@
-import jwt from 'jsonwebtoken';
-import User from '../models/user.model.js';
-import env from '../config/env.js';
-import AppError from '../utils/appError.js';
+require('dotenv/config');
+const jwt = require('jsonwebtoken');
+const User = require('../models/user.model.js');
 
-export const protect = async (req, res, next) => {
+class AppError extends Error {
+  constructor(message, statusCode) {
+    super(message);
+    this.statusCode = statusCode;
+    this.isOperational = true;
+    Error.captureStackTrace(this, this.constructor);
+  }
+}
+
+const jwtSecret = process.env.JWT_SECRET;
+
+if (!jwtSecret) {
+  throw new Error('JWT_SECRET is required');
+}
+
+const protect = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -12,7 +26,7 @@ export const protect = async (req, res, next) => {
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, env.jwtSecret);
+    const decoded = jwt.verify(token, jwtSecret);
 
     const user = await User.findById(decoded.userId).select('-password');
 
@@ -27,10 +41,28 @@ export const protect = async (req, res, next) => {
   }
 };
 
-export const allowRoles = (...roles) => (req, res, next) => {
+const allowRoles = (...roles) => (req, res, next) => {
   if (!req.user || !roles.includes(req.user.role)) {
     return next(new AppError('Forbidden', 403));
   }
 
   return next();
 };
+
+const allowUserOnly = (req, res, next) => {
+  if (!req.user || req.user.role !== 'user') {
+    return next(new AppError('Forbidden', 403));
+  }
+
+  return next();
+};
+
+const allowAdminOnly = (req, res, next) => {
+  if (!req.user || req.user.role !== 'admin') {
+    return next(new AppError('Forbidden', 403));
+  }
+
+  return next();
+};
+
+module.exports = { protect, allowRoles, allowUserOnly, allowAdminOnly };

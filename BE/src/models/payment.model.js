@@ -1,31 +1,46 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const { Schema } = mongoose;
 
 const paymentSchema = new Schema(
   {
-    orderId: { type: Schema.Types.ObjectId, ref: 'Order', required: true, index: true },
-    provider: { type: String, enum: ['cash', 'momo', 'sepay'], default: 'cash', required: true },
-    transactionId: { type: String, trim: true },
-    amount: { type: Number, required: true, min: 0 },
+    orderId: { 
+      type: Schema.Types.ObjectId, 
+      ref: 'Order', 
+      required: true 
+    },
+    provider: { 
+      type: String, 
+      enum: ['cash', 'paypal'], 
+      default: 'cash', 
+      required: true 
+    },
+    transactionId: { 
+      type: String, 
+      trim: true 
+    },
+    amount: { 
+      type: Number, 
+      required: true, 
+      min: 0 
+    },
     status: {
       type: String,
       enum: ['pending', 'success', 'failed'],
       default: 'pending',
-      required: true,
-      index: true
+      required: true
     },
-    rawResponse: { type: Schema.Types.Mixed, default: null }
-  },
-  { timestamps: true }
-);
-
-paymentSchema.index({ orderId: 1, provider: 1 });
-paymentSchema.index(
-  { transactionId: 1 },
-  { unique: true, sparse: true, partialFilterExpression: { transactionId: { $type: 'string' } } }
+    createdAt: {
+      type: Date,
+      default: Date.now
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }
 );
 
 const Payment = mongoose.model('Payment', paymentSchema);
 
-export default Payment;
+module.exports = Payment;

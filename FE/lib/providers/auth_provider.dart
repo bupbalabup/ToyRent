@@ -1,95 +1,203 @@
-import 'package:flutter/foundation.dart';
+import 'dart:convert';
 
-import '../models/user_model.dart';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../config/api_config.dart';
+import '../config/constants.dart';
 import '../services/auth_service.dart';
-import '../services/local_storage_service.dart';
 
 class AuthProvider extends ChangeNotifier {
-  AuthProvider(this._authService, this._localStorageService);
+  final AuthService _authService = AuthService();
+  late SharedPreferences _prefs;
+  late final Future<void> _initFuture;
 
-  final AuthService _authService;
-  final LocalStorageService _localStorageService;
-
+  // State
   bool _isLoading = false;
-  String? _error;
+  String? _errorMessage;
   String? _token;
-  UserModel? _user;
+  UserInfoModel? _user;
+  bool _isLoggedIn = false;
 
+  // Getters
   bool get isLoading => _isLoading;
-  String? get error => _error;
-  bool get isAuthenticated => _token != null && _token!.isNotEmpty;
-  UserModel? get user => _user;
+  String? get errorMessage => _errorMessage;
   String? get token => _token;
+  UserInfoModel? get user => _user;
+  bool get isLoggedIn => _isLoggedIn;
 
-  Future<void> bootstrap() async {
-    _isLoading = true;
+  AuthProvider() {
+    _initFuture = _initializePreferences();
+  }
 
+  /// Initialize SharedPreferences and restore saved state
+  Future<void> _initializePreferences() async {
+    _prefs = await SharedPreferences.getInstance();
+    await _restoreSession();
+  }
+
+  /// Restore session from local storage
+  Future<void> _restoreSession() async {
     try {
-      final loggedIn = await _localStorageService.isLoggedIn();
-      if (!loggedIn) return;
+      _token = _prefs.getString(StorageKeys.authToken);
+      final userJson = _prefs.getString(StorageKeys.userData);
 
-      _token = await _localStorageService.getToken();
-      _user = await _localStorageService.getUser();
-    } finally {
-      _isLoading = false;
-      notifyListeners();
+      if (_token != null && userJson != null) {
+        final decoded = jsonDecode(userJson) as Map<String, dynamic>;
+        _user = UserInfoModel.fromJson(decoded);
+        _isLoggedIn = true;
+        ApiConfig.setAuthToken(_token);
+        notifyListeners();
+      }
+    } catch (e) {
+      print('Error restoring session: $e');
     }
   }
 
-  Future<bool> login({required String email, required String password}) async {
+  /// Perform login
+  Future<bool> login({
+    required String email,
+    required String password,
+  }) async {
+    await _initFuture;
     _setLoading(true);
+    _clearError();
 
     try {
-      final result = await _authService.login(email: email, password: password);
-      _token = result.$1;
-      _user = result.$2;
-      await _localStorageService.saveSession(token: _token!, user: _user!);
-      _error = null;
+      final response = await _authService.login(
+        email: email,
+        password: password,
+      );
+
+      // Save token and user data
+      _token = response.token;
+      _user = UserInfoModel.fromUserData(response.user);
+      _isLoggedIn = true;
+      ApiConfig.setAuthToken(_token);
+
+      // Persist to local storage
+      await _prefs.setString(StorageKeys.authToken, response.token);
+      await _prefs.setBool(StorageKeys.isLoggedIn, true);
+      await _prefs.setString(StorageKeys.userData, jsonEncode(_user!.toJson()));
+
+      _setLoading(false);
+      notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString().replaceFirst('Exception: ', '');
-      return false;
-    } finally {
+      _setError(e.toString());
       _setLoading(false);
+      notifyListeners();
+      return false;
     }
   }
 
   Future<bool> register({
     required String name,
     required String email,
+    String? phone,
     required String password,
   }) async {
+    await _initFuture;
     _setLoading(true);
+    _clearError();
 
     try {
-      final result = await _authService.register(name: name, email: email, password: password);
-      _token = result.$1;
-      _user = result.$2;
-      await _localStorageService.saveSession(token: _token!, user: _user!);
-      _error = null;
+      final response = await _authService.register(
+        name: name,
+        email: email,
+        phone: phone,
+        password: password,
+      );
+
+      _token = response.token;
+      _user = UserInfoModel.fromUserData(response.user);
+      _isLoggedIn = true;
+      ApiConfig.setAuthToken(_token);
+
+      await _prefs.setString(StorageKeys.authToken, response.token);
+      await _prefs.setBool(StorageKeys.isLoggedIn, true);
+      await _prefs.setString(StorageKeys.userData, jsonEncode(_user!.toJson()));
+
+      _setLoading(false);
+      notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString().replaceFirst('Exception: ', '');
-      return false;
-    } finally {
+      _setError(e.toString());
       _setLoading(false);
+      notifyListeners();
+      return false;
     }
   }
 
+  /// Logout
   Future<void> logout() async {
-    _token = null;
-    _user = null;
-    await _localStorageService.clearSession();
-    notifyListeners();
+    await _initFuture;
+    try {
+      await _prefs.clear();
+      _token = null;
+      _user = null;
+      _isLoggedIn = false;
+      _errorMessage = null;
+      ApiConfig.setAuthToken(null);
+      notifyListeners();
+    } catch (e) {
+      print('Error during logout: $e');
+    }
   }
 
-  void clearError() {
-    _error = null;
-    notifyListeners();
+  /// Clear error message
+  void _clearError() {
+    _errorMessage = null;
   }
 
+  /// Set error message
+  void _setError(String message) {
+    _errorMessage = message;
+  }
+
+  /// Set loading state
   void _setLoading(bool value) {
     _isLoading = value;
-    notifyListeners();
+  }
+}
+
+/// Local user info model
+class UserInfoModel {
+  final String id;
+  final String name;
+  final String email;
+  final String? phone;
+
+  UserInfoModel({
+    required this.id,
+    required this.name,
+    required this.email,
+    this.phone,
+  });
+
+  factory UserInfoModel.fromUserData(dynamic userData) {
+    return UserInfoModel(
+      id: userData.id ?? '',
+      name: userData.name ?? '',
+      email: userData.email ?? '',
+      phone: userData.phone,
+    );
+  }
+
+  factory UserInfoModel.fromJson(Map<String, dynamic> json) {
+    return UserInfoModel(
+      id: json['id'] ?? json['_id'] ?? '',
+      name: json['name'] ?? '',
+      email: json['email'] ?? '',
+      phone: json['phone'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'email': email,
+      'phone': phone,
+    };
   }
 }

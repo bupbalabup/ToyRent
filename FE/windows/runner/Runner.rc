@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "toyflix_app" "\0"
+            VALUE "FileDescription", "rent_toys" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "toyflix_app" "\0"
+            VALUE "InternalName", "rent_toys" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "toyflix_app.exe" "\0"
-            VALUE "ProductName", "toyflix_app" "\0"
+            VALUE "OriginalFilename", "rent_toys.exe" "\0"
+            VALUE "ProductName", "rent_toys" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

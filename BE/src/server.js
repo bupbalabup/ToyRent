@@ -1,26 +1,9 @@
-import http from 'http';
-import app from './app.js';
-import env from './config/env.js';
-import connectDB from './config/db.js';
+require('dotenv/config');
+const app = require('./app.js');
+const connectDB = require('./config/db.js');
 
-const startServer = async () => {
-  await connectDB();
+connectDB();
+const PORT = process.env.PORT || 5000;
+const HOST = process.env.HOST || '0.0.0.0';
 
-  const server = http.createServer(app);
-
-  server.listen(env.port, () => {
-    process.stdout.write(`Server running on port ${env.port}\n`);
-  });
-
-  const gracefulShutdown = async () => {
-    server.close(() => process.exit(0));
-  };
-
-  process.on('SIGINT', gracefulShutdown);
-  process.on('SIGTERM', gracefulShutdown);
-};
-
-startServer().catch((error) => {
-  process.stderr.write(`${error.message}\n`);
-  process.exit(1);
-});
+app.listen(PORT, HOST, () => console.log(`Server running on http://${HOST}:${PORT}`));

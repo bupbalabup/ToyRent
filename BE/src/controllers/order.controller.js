@@ -1,67 +1,111 @@
-import Order from '../models/order.model.js';
-import asyncHandler from '../utils/asyncHandler.js';
-import { sendResponse } from '../utils/apiResponse.js';
-import AppError from '../utils/appError.js';
-import { createOrderWithTransaction, updateOrderStatusWithNotification } from '../services/order.service.js';
+const Order = require('../models/order.model.js');
+const { createOrderWithTransaction, updateOrderStatusWithNotification } = require('../services/order.service.js');
 
-export const createOrder = asyncHandler(async (req, res) => {
-  const {
-    items,
-    rentalStartDate,
-    rentalEndDate,
-    voucherCode,
-    fulfillmentType,
-    shippingAddress,
-    paymentMethod
-  } = req.body;
+const ORDER_ITEM_TOY_POPULATE = { path: 'items.toyId', select: 'name images description' };
 
-  const order = await createOrderWithTransaction({
-    userId: req.user._id,
-    items,
-    rentalStartDate,
-    rentalEndDate,
-    voucherCode,
-    fulfillmentType,
-    shippingAddress,
-    paymentMethod
-  });
+const createOrder = async (req, res, next) => {
+  try {
+    if (req.user.role === 'admin') {
+      return res.status(403).json({ success: false, message: 'Admin cannot place orders', data: {} });
+    }
 
-  return sendResponse(res, 201, 'Order created', { order });
-});
+    const {
+      items,
+      rentalStartDate,
+      rentalEndDate,
+      rentalDurationHours,
+      paymentMethod
+    } = req.body;
 
-export const getMyOrders = asyncHandler(async (req, res) => {
-  const orders = await Order.find({ userId: req.user._id })
-    .populate('voucherId')
-    .sort({ createdAt: -1 });
+    const order = await createOrderWithTransaction({
+      userId: req.user._id,
+      items,
+      rentalStartDate,
+      rentalEndDate,
+      rentalDurationHours,
+      paymentMethod
+    });
 
-  return sendResponse(res, 200, 'Orders fetched', { orders });
-});
-
-export const getOrderById = asyncHandler(async (req, res) => {
-  const order = await Order.findById(req.params.id).populate('voucherId');
-
-  if (!order) {
-    throw new AppError('Order not found', 404);
+    return res.status(201).json({ success: true, message: 'Order created', data: { order } });
+  } catch (error) {
+    return next(error);
   }
+};
 
-  if (req.user.role !== 'admin' && order.userId.toString() !== req.user._id.toString()) {
-    throw new AppError('Forbidden', 403);
+const getMyOrders = async (req, res, next) => {
+  try {
+    const orders = await Order.find({ userId: req.user._id })
+      .populate(ORDER_ITEM_TOY_POPULATE)
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({ success: true, message: 'Orders fetched', data: { orders } });
+  } catch (error) {
+    return next(error);
   }
+};
 
-  return sendResponse(res, 200, 'Order fetched', { order });
-});
+const getOrderById = async (req, res, next) => {
+  try {
+    const order = await Order.findById(req.params.id).populate(ORDER_ITEM_TOY_POPULATE);
 
-export const updateOrderStatus = asyncHandler(async (req, res) => {
-  const { orderStatus } = req.body;
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found', data: {} });
+    }
 
-  if (!orderStatus) {
-    throw new AppError('orderStatus is required', 400);
+    if (req.user.role !== 'admin' && order.userId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Forbidden', data: {} });
+    }
+
+    return res.status(200).json({ success: true, message: 'Order fetched', data: { order } });
+  } catch (error) {
+    return next(error);
   }
+};
 
-  const order = await updateOrderStatusWithNotification({
-    orderId: req.params.id,
-    status: orderStatus
-  });
+const updateOrderStatus = async (req, res, next) => {
+  try {
+    const { orderStatus } = req.body;
 
-  return sendResponse(res, 200, 'Order status updated', { order });
-});
+    if (!orderStatus) {
+      return res.status(400).json({
+        success: false,
+        message: 'orderStatus is required',
+        data: {}
+      });
+    }
+
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found', data: {} });
+    }
+
+    await updateOrderStatusWithNotification({
+      orderId: req.params.id,
+      status: orderStatus
+    });
+
+    const updatedOrder = await Order.findById(req.params.id).populate(ORDER_ITEM_TOY_POPULATE);
+    return res.status(200).json({
+      success: true,
+      message: 'Order status updated',
+      data: { order: updatedOrder }
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const getAllOrders = async (req, res, next) => {
+  try {
+    const orders = await Order.find({})
+      .populate(ORDER_ITEM_TOY_POPULATE)
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({ success: true, message: 'All orders fetched', data: { orders } });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+module.exports = { createOrder, getMyOrders, getOrderById, updateOrderStatus, getAllOrders };

@@ -1,8 +1,8 @@
 {
   "name": "toyrental-api",
   "version": "1.0.0",
-  "description": "Production-ready Toy Rental RESTful API",
-  "type": "module",
+  "description": "Toy Rental RESTful API",
+  "type": "commonjs",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",

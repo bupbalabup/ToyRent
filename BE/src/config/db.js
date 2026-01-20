@@ -1,13 +1,20 @@
-import mongoose from 'mongoose';
-import env from './env.js';
+const mongoose = require('mongoose');
+require('dotenv').config();
 
 const connectDB = async () => {
-  mongoose.set('strictQuery', true);
+    try {
+        const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
 
-  await mongoose.connect(env.mongoUri, {
-    autoIndex: false,
-    maxPoolSize: 20
-  });
+        if (!mongoUri) {
+            throw new Error('MONGODB_URI (or legacy MONGO_URI) is required');
+        }
+
+        await mongoose.connect(mongoUri);
+        console.log('MongoDB connected successfully');
+    } catch (error) {
+        console.error("MongoDB connection failed: ", error);
+        process.exit(1);
+    }
 };
 
-export default connectDB;
+module.exports = connectDB;

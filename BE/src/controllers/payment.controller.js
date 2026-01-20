@@ -1,30 +1,95 @@
-import asyncHandler from '../utils/asyncHandler.js';
-import { sendResponse } from '../utils/apiResponse.js';
-import AppError from '../utils/appError.js';
-import { processPaymentCheckout } from '../services/payment.service.js';
-import mongoose from 'mongoose';
+const { processPaymentCheckout, syncPaypalPaymentStatus, capturePaypalPaymentStatus, expirePaymentSession } = require('../services/payment.service.js');
+const mongoose = require('mongoose');
 
-export const checkoutPayment = asyncHandler(async (req, res) => {
-  const { orderId, paymentMethod, rawResponse, returnUrl } = req.body;
+const checkoutPayment = async (req, res, next) => {
+  try {
+    const { orderId, paymentMethod, returnUrl } = req.body;
+    const normalizedPaymentMethod = String(paymentMethod || 'cash').toLowerCase();
 
-  if (!orderId) {
-    throw new AppError('orderId is required', 400);
+    if (!orderId) {
+      return res.status(400).json({ success: false, message: 'orderId is required', data: {} });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ success: false, message: 'Invalid orderId', data: {} });
+    }
+
+    const payment = await processPaymentCheckout({
+      orderId,
+      paymentMethod: normalizedPaymentMethod,
+      returnUrl: returnUrl || null,
+      userId: req.user._id,
+      role: req.user.role
+    });
+
+    return res.status(201).json({ success: true, message: 'Payment processed', data: payment });
+  } catch (error) {
+    return next(error);
   }
+};
 
-  if (!mongoose.Types.ObjectId.isValid(orderId)) {
-    throw new AppError('Invalid orderId', 400);
+const syncPaypalPayment = async (req, res, next) => {
+  try {
+    const { orderId } = req.params;
+    const { paypalOrderId } = req.query;
+
+    if (!paypalOrderId) {
+      return res.status(400).json({ success: false, message: 'paypalOrderId is required', data: {} });
+    }
+
+    const result = await syncPaypalPaymentStatus({
+      orderId,
+      paypalOrderId: String(paypalOrderId),
+      userId: req.user._id,
+      role: req.user.role
+    });
+
+    return res.status(200).json({ success: true, message: 'PayPal payment synced', data: result });
+  } catch (error) {
+    return next(error);
   }
+};
 
-  if (!paymentMethod) {
-    throw new AppError('paymentMethod is required', 400);
+const capturePaypalPayment = async (req, res, next) => {
+  try {
+    const { orderId } = req.params;
+    const paypalOrderId = req.body?.paypalOrderId || req.query?.paypalOrderId;
+
+    if (!paypalOrderId) {
+      return res.status(400).json({ success: false, message: 'paypalOrderId is required', data: {} });
+    }
+
+    const result = await capturePaypalPaymentStatus({
+      orderId,
+      paypalOrderId: String(paypalOrderId),
+      userId: req.user._id,
+      role: req.user.role
+    });
+
+    return res.status(200).json({ success: true, message: 'PayPal payment captured', data: result });
+  } catch (error) {
+    return next(error);
   }
+};
 
-  const payment = await processPaymentCheckout({
-    orderId,
-    paymentMethod,
-    rawResponse: rawResponse || null,
-    returnUrl: returnUrl || null
-  });
+const expireOrderPayment = async (req, res, next) => {
+  try {
+    const { orderId } = req.params;
 
-  return sendResponse(res, 201, 'Payment processed', payment);
-});
+    const result = await expirePaymentSession({
+      orderId,
+      userId: req.user._id,
+      role: req.user.role
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Payment session expiration handled',
+      data: result
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+module.exports = { checkoutPayment, syncPaypalPayment, capturePaypalPayment, expireOrderPayment };

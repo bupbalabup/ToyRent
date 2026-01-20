@@ -1,62 +1,47 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
-import 'core/constants/app_constants.dart';
-import 'core/routes/app_router.dart';
-import 'core/routes/app_routes.dart';
-import 'core/theme/app_theme.dart';
+import 'config/theme.dart';
 import 'providers/auth_provider.dart';
-import 'providers/cart_provider.dart';
-import 'providers/order_provider.dart';
-import 'providers/toy_provider.dart';
-import 'services/api_service.dart';
-import 'services/auth_service.dart';
-import 'services/location_service.dart';
-import 'services/local_storage_service.dart';
-import 'services/notification_service.dart';
-import 'services/order_service.dart';
-import 'services/payment_service.dart';
-import 'services/toy_service.dart';
+import 'providers/product_provider.dart';
+import 'providers/category_provider.dart';
+import 'screens/home_screen.dart';
+import 'screens/login_screen.dart';
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await NotificationService.instance.init();
-
-  final localStorageService = LocalStorageService();
-  final apiService = ApiService(localStorageService.getToken);
-
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider<AuthProvider>(
-          create: (_) => AuthProvider(AuthService(apiService), localStorageService),
-        ),
-        ChangeNotifierProvider<ToyProvider>(
-          create: (_) => ToyProvider(ToyService(apiService)),
-        ),
-        ChangeNotifierProvider<CartProvider>(create: (_) => CartProvider()),
-        ChangeNotifierProvider<OrderProvider>(
-          create: (_) => OrderProvider(OrderService(apiService)),
-        ),
-        Provider<LocationService>(create: (_) => LocationService(apiService)),
-        Provider<PaymentService>(create: (_) => PaymentService(apiService)),
-      ],
-      child: const ToyflixApp(),
-    ),
-  );
+void main() {
+  runApp(const MyApp());
 }
 
-class ToyflixApp extends StatelessWidget {
-  const ToyflixApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: AppConstants.appName,
-      theme: AppTheme.darkTheme,
-      initialRoute: AppRoutes.splash,
-      onGenerateRoute: AppRouter.onGenerateRoute,
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (_) => AuthProvider(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => ProductProvider(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => CategoryProvider(),
+        ),
+      ],
+      child: MaterialApp(
+        title: 'RentToys',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.lightTheme(),
+        home: Consumer<AuthProvider>(
+          builder: (context, auth, _) {
+            if (auth.isLoggedIn) {
+              return const HomeScreen();
+            }
+
+            return const LoginScreen();
+          },
+        ),
+      ),
     );
   }
 }
