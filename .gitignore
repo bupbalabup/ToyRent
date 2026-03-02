@@ -1,0 +1,54 @@
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Node.js
+node_modules/
+dist/
+build/
+coverage/
+.nyc_output/
+
+# Flutter / Dart
+**/.dart_tool/
+**/.packages
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.pub-cache/
+**/.pub/
+**/build/
+**/coverage/
+**/generated_plugin_registrant.dart
+
+# Flutter platform ephemeral
+**/android/.gradle/
+**/android/local.properties
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/ephemeral/
+**/ios/Pods/
+**/ios/Runner.xcworkspace/
+**/macos/Flutter/ephemeral/
+**/windows/flutter/ephemeral/
+**/linux/flutter/ephemeral/
+
+# Keep lockfiles (recommended for reproducible builds)
+#!pubspec.lock
+#!package-lock.json
