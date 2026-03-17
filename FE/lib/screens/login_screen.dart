@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
-import 'home_screen.dart';
+import 'role_guard_widget.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -86,8 +86,9 @@ class _LoginScreenState extends State<LoginScreen>
             backgroundColor: Color(0xFF4CAF50),
           ),
         );
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const RoleGuardWidget()),
+          (route) => false,
         );
       }
     });

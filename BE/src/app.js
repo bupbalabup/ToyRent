@@ -9,6 +9,7 @@ const { getToys } = require('./controllers/toy.controller.js');
 const orderRoutes = require('./routes/order.routes.js');
 const paymentRoutes = require('./routes/payment.routes.js');
 const notificationRoutes = require('./routes/notification.routes.js');
+const chatRoutes = require('./routes/chat.routes.js');
 
 const sendResponse = (res, statusCode, message, data = {}) => {
 	return res.status(statusCode).json({
@@ -57,6 +58,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/chat', chatRoutes);
 
 app.use((req, res) => sendResponse(res, 404, 'Route not found', {}));
 

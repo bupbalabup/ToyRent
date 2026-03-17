@@ -3,10 +3,14 @@ import 'package:provider/provider.dart';
 import '../providers/product_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/chat_provider.dart';
 import '../widgets/product_card.dart';
 import '../widgets/shimmer_loading.dart';
+import '../widgets/notification_bell_widget.dart';
 import 'order_history_screen.dart';
 import 'product_detail_screen.dart';
+import 'notifications_list_screen.dart' show NotificationsScreen;
+import 'chat_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -134,6 +138,66 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ),
           actions: [
+            // Notification Bell
+            NotificationBellWidget(
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                );
+              },
+            ),
+            // Chat Icon with unread badge
+            Consumer<ChatProvider>(
+              builder: (context, chatProvider, _) {
+                final unreadCount = chatProvider.getTotalUnreadCount();
+                return Stack(
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.chat_bubble_outline,
+                        color: Color(0xFF1A1A1A),
+                        size: 24,
+                      ),
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const ChatListScreen()),
+                        );
+                      },
+                    ),
+                    if (unreadCount > 0)
+                      Positioned(
+                        right: 8,
+                        top: 8,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: Colors.white,
+                              width: 1.5,
+                            ),
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 20,
+                            minHeight: 20,
+                          ),
+                          child: Text(
+                            unreadCount > 99 ? '99+' : unreadCount.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+            // Orders history
             IconButton(
               icon: const Icon(
                 Icons.receipt_long_outlined,
@@ -146,6 +210,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 );
               },
             ),
+            // Logout
             IconButton(
               icon: const Icon(
                 Icons.logout,
@@ -651,6 +716,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 rentalPrice: product.rentalPrice,
                                 depositAmount: product.depositAmount,
                                 imageUrl: product.imageUrl,
+                                images: product.images,
                                 inStock: product.inStock,
                               ),
                             ),

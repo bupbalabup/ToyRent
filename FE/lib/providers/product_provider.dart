@@ -140,6 +140,7 @@ class ToyItem {
   final double rentalPrice;
   final double depositAmount;
   final String? imageUrl;
+  final List<String> images;
   final bool inStock;
   final String? categoryName;
 
@@ -149,6 +150,7 @@ class ToyItem {
     required this.rentalPrice,
     required this.depositAmount,
     this.imageUrl,
+    this.images = const [],
     required this.inStock,
     this.categoryName,
   });
@@ -159,7 +161,8 @@ class ToyItem {
       name: toyData.name,
       rentalPrice: toyData.rentalPrice,
       depositAmount: toyData.depositAmount,
-      imageUrl: toyData.images.isNotEmpty ? toyData.images.first : null,
+      imageUrl: toyData.imageUrl,
+      images: toyData.images,
       inStock: toyData.hasStock,
       categoryName: toyData.category?.name,
     );

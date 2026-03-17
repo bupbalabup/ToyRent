@@ -1,6 +1,34 @@
 import 'package:dio/dio.dart';
 import '../config/api_config.dart';
 
+String _extractObjectId(dynamic value) {
+  if (value is String) return value;
+  if (value is Map<String, dynamic>) {
+    final id = value['_id'];
+    if (id is String) return id;
+  }
+  return '';
+}
+
+Map<String, dynamic> _asMap(dynamic value) {
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) return Map<String, dynamic>.from(value);
+  return <String, dynamic>{};
+}
+
+double _asDouble(dynamic value, [double fallback = 0]) {
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value) ?? fallback;
+  return fallback;
+}
+
+int _asInt(dynamic value, [int fallback = 0]) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value) ?? fallback;
+  return fallback;
+}
+
 class ToyService {
   late final Dio _dio;
 
@@ -109,7 +137,7 @@ class ToyListResponse {
   factory ToyListResponse.fromJson(Map<String, dynamic> json) {
     return ToyListResponse(
       items: (json['items'] as List?)
-              ?.map((item) => ToyData.fromJson(item))
+              ?.map((item) => ToyData.fromJson(_asMap(item)))
               .toList() ??
           [],
       pagination: PaginationData.fromJson(json['pagination'] ?? {}),
@@ -124,6 +152,7 @@ class ToyData {
   final String? description;
   final double rentalPrice;
   final double depositAmount;
+  final String? imageUrl;
   final int stock;
   final List<String> images;
   final CategoryData? category;
@@ -136,6 +165,7 @@ class ToyData {
     this.description,
     required this.rentalPrice,
     required this.depositAmount,
+    this.imageUrl,
     required this.stock,
     this.images = const [],
     this.category,
@@ -144,19 +174,28 @@ class ToyData {
   });
 
   factory ToyData.fromJson(Map<String, dynamic> json) {
+    final categoryRaw = json['categoryId'];
     return ToyData(
-      id: json['_id'] ?? '',
-      name: json['name'] ?? 'Unknown',
-      description: json['description'],
-      rentalPrice: (json['rentalPrice'] ?? 0).toDouble(),
-      depositAmount: (json['depositAmount'] ?? 0).toDouble(),
-      stock: json['stock'] ?? 0,
-      images: List<String>.from(json['images'] ?? []),
-      category: json['categoryId'] != null
-          ? CategoryData.fromJson(json['categoryId'])
+      id: _extractObjectId(json['_id']),
+      name: json['name'] as String? ?? 'Unknown',
+      description: json['description'] as String?,
+      rentalPrice: _asDouble(json['rentalPrice']),
+      depositAmount: _asDouble(json['depositAmount']),
+        imageUrl: json['imageUrl'] as String? ??
+          (((json['images'] as List<dynamic>?) ?? []).isNotEmpty
+            ? ((json['images'] as List<dynamic>).first).toString()
+            : null),
+      stock: _asInt(json['stock']),
+      images: ((json['images'] as List<dynamic>?) ?? [])
+          .map((e) => e.toString())
+          .toList(),
+      category: categoryRaw != null
+          ? CategoryData.fromJson(
+              categoryRaw is String ? {'_id': categoryRaw} : _asMap(categoryRaw),
+            )
           : null,
-      maxRentalDuration: json['maxRentalDuration'] ?? 24,
-      isActive: json['isActive'] ?? true,
+      maxRentalDuration: _asInt(json['maxRentalDuration'], 24),
+      isActive: json['isActive'] as bool? ?? true,
     );
   }
 
@@ -177,9 +216,9 @@ class CategoryData {
 
   factory CategoryData.fromJson(Map<String, dynamic> json) {
     return CategoryData(
-      id: json['_id'] ?? '',
-      name: json['name'] ?? 'Unknown',
-      icon: json['icon'],
+      id: _extractObjectId(json['_id']),
+      name: json['name'] as String? ?? 'Unknown',
+      icon: json['icon'] as String?,
     );
   }
 }

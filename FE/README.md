@@ -55,23 +55,23 @@ flutter run
 Update `lib/config/api_config.dart`:
 
 ```dart
-static const String _baseUrlAndroid = 'http://YOUR_BACKEND_IP:3000/api';
-static const String _baseUrlIOS = 'http://YOUR_BACKEND_IP:3000/api';
+static const String _baseUrlAndroid = 'http://YOUR_BACKEND_IP:5000/api';
+static const String _baseUrlIOS = 'http://YOUR_BACKEND_IP:5000/api';
 ```
 
 **For Android Emulator (local backend):**
 ```
-http://10.0.2.2:3000/api
+http://10.0.2.2:5000/api
 ```
 
 **For iOS Simulator (local backend):**
 ```
-http://127.0.0.1:3000/api
+http://127.0.0.1:5000/api
 ```
 
 **For Physical Device:**
 ```
-http://YOUR_COMPUTER_IP:3000/api  # e.g., 192.168.1.100:3000/api
+http://YOUR_COMPUTER_IP:5000/api  # e.g., 192.168.1.100:5000/api
 ```
 
 ## 📱 Backend Integration
@@ -221,7 +221,7 @@ Ensure your Node.js backend is running:
 cd ../BE
 npm install
 npm start
-# Backend runs on http://localhost:3000
+# Backend runs on http://localhost:5000
 ```
 
 Backend must have:

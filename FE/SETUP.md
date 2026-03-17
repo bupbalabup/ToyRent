@@ -26,13 +26,13 @@ Edit **lib/config/api_config.dart**:
 
 ```dart
 // For Android Emulator (local backend)
-static const String _baseUrlAndroid = 'http://10.0.2.2:3000/api';
+static const String _baseUrlAndroid = 'http://10.0.2.2:5000/api';
 
 // For iOS Simulator
-static const String _baseUrlIOS = 'http://127.0.0.1:3000/api';
+static const String _baseUrlIOS = 'http://127.0.0.1:5000/api';
 
 // For Physical Device
-static const String _baseUrlAndroid = 'http://192.168.1.100:3000/api';
+static const String _baseUrlAndroid = 'http://192.168.1.100:5000/api';
 ```
 
 ### 4. Run the App
@@ -55,13 +55,13 @@ flutter run -d iphone         # iOS
 
 ### Android Emulator
 ```
-Base URL: http://10.0.2.2:3000/api
+Base URL: http://10.0.2.2:5000/api
 Reason: Special alias to access host machine from emulator
 ```
 
 ### iOS Simulator
 ```
-Base URL: http://127.0.0.1:3000/api
+Base URL: http://127.0.0.1:5000/api
 Reason: Direct localhost access
 ```
 
@@ -72,7 +72,7 @@ Reason: Direct localhost access
    - Mac/Linux: ifconfig | grep inet
 
 2. Update config:
-   static const String _baseUrlAndroid = 'http://192.168.1.100:3000/api';
+   static const String _baseUrlAndroid = 'http://192.168.1.100:5000/api';
 
 3. Ensure device is on same network as backend
 4. Backend must be accessible: ping 192.168.1.100
@@ -201,7 +201,7 @@ flutter run
 ### Network Debugging
 ```bash
 # Check if backend is reachable
-curl http://192.168.1.100:3000/api/auth/login \
+curl http://192.168.1.100:5000/api/auth/login \
   -X POST \
   -H "Content-Type: application/json" \
   -d '{"email":"test@test.com","password":"password"}'
@@ -266,7 +266,7 @@ flutter test
 
 If you encounter issues:
 
-1. Check backend is running: `http://localhost:3000`
+1. Check backend is running: `http://localhost:5000`
 2. Verify credentials in database
 3. Check network connectivity
 4. Review console logs in Flutter

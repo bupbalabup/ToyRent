@@ -25,13 +25,24 @@ class PaypalWebviewScreen extends StatefulWidget {
 }
 
 class _PaypalWebviewScreenState extends State<PaypalWebviewScreen> {
-  late final WebViewController _controller;
+  WebViewController? _controller;
   bool _loading = true;
   String? _error;
+  late final bool _supportsInAppWebView;
 
   @override
   void initState() {
     super.initState();
+    _supportsInAppWebView = !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS ||
+            defaultTargetPlatform == TargetPlatform.macOS);
+
+    if (!_supportsInAppWebView) {
+      _loading = false;
+      return;
+    }
+
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
@@ -127,7 +138,7 @@ class _PaypalWebviewScreenState extends State<PaypalWebviewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (kIsWeb) {
+    if (kIsWeb || !_supportsInAppWebView) {
       return Scaffold(
         appBar: AppBar(
           title: const Text('PayPal Checkout'),
@@ -137,8 +148,10 @@ class _PaypalWebviewScreenState extends State<PaypalWebviewScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'PayPal checkout opens in a browser tab on web. Complete payment there, then return here and tap Done Payment.',
+              Text(
+                kIsWeb
+                    ? 'PayPal checkout opens in a browser tab on web. Complete payment there, then return here and tap Done Payment.'
+                    : 'This device does not support embedded WebView checkout. Open PayPal in browser, complete payment, then return and tap Done Payment.',
               ),
               const SizedBox(height: 16),
               ElevatedButton(
@@ -177,7 +190,7 @@ class _PaypalWebviewScreenState extends State<PaypalWebviewScreen> {
               ],
             ),
           Expanded(
-            child: WebViewWidget(controller: _controller),
+            child: WebViewWidget(controller: _controller!),
           ),
           Padding(
             padding: const EdgeInsets.all(12),

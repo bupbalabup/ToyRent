@@ -19,9 +19,22 @@ const notificationSchema = new Schema(
       required: true,
       trim: true
     },
+    type: {
+      type: String,
+      enum: ['order', 'payment', 'system', 'message'],
+      default: 'system'
+    },
     isRead: {
       type: Boolean,
       default: false
+    },
+    relatedId: {
+      type: Schema.Types.ObjectId,
+      ref: function() {
+        if (this.type === 'order') return 'Order';
+        if (this.type === 'payment') return 'Payment';
+        return null;
+      }
     },
     createdAt: {
       type: Date,
@@ -31,8 +44,12 @@ const notificationSchema = new Schema(
       type: Date,
       default: Date.now
     }
-  }
+  },
+  { timestamps: true }
 );
+
+notificationSchema.index({ userId: 1, createdAt: -1 });
+notificationSchema.index({ userId: 1, isRead: 1 });
 
 const Notification = mongoose.model('Notification', notificationSchema);
 

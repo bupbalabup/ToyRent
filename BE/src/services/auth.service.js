@@ -42,8 +42,16 @@ const registerUser = async ({ name, email, phone, password }) => {
 
   const token = signToken(user._id);
 
-  const safeUser = user.toObject();
-  delete safeUser.password;
+  const safeUser = {
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    role: user.role,
+    isActive: user.isActive,
+    isVerified: user.isVerified,
+    avatar: user.avatar
+  };
 
   return { user: safeUser, token };
 };
@@ -55,6 +63,10 @@ const loginUser = async ({ email, password }) => {
     throw new AppError('Invalid credentials', 401);
   }
 
+  if (user.isActive === false) {
+    throw new AppError('Your account is inactive. Please contact admin.', 403);
+  }
+
   const passwordMatched = await bcrypt.compare(password, user.password);
 
   if (!passwordMatched) {
@@ -63,8 +75,16 @@ const loginUser = async ({ email, password }) => {
 
   const token = signToken(user._id);
 
-  const safeUser = user.toObject();
-  delete safeUser.password;
+  const safeUser = {
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    role: user.role,
+    isActive: user.isActive,
+    isVerified: user.isVerified,
+    avatar: user.avatar
+  };
 
   return { user: safeUser, token };
 };

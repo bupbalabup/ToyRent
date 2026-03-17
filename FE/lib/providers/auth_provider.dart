@@ -24,6 +24,8 @@ class AuthProvider extends ChangeNotifier {
   String? get token => _token;
   UserInfoModel? get user => _user;
   bool get isLoggedIn => _isLoggedIn;
+  bool get isAdmin => _user?.role == 'admin';
+  bool get isUser => _user?.role == 'user';
 
   AuthProvider() {
     _initFuture = _initializePreferences();
@@ -78,6 +80,7 @@ class AuthProvider extends ChangeNotifier {
       await _prefs.setString(StorageKeys.authToken, response.token);
       await _prefs.setBool(StorageKeys.isLoggedIn, true);
       await _prefs.setString(StorageKeys.userData, jsonEncode(_user!.toJson()));
+      await _prefs.setString('user_role', _user!.role);
 
       _setLoading(false);
       notifyListeners();
@@ -116,6 +119,7 @@ class AuthProvider extends ChangeNotifier {
       await _prefs.setString(StorageKeys.authToken, response.token);
       await _prefs.setBool(StorageKeys.isLoggedIn, true);
       await _prefs.setString(StorageKeys.userData, jsonEncode(_user!.toJson()));
+      await _prefs.setString('user_role', _user!.role);
 
       _setLoading(false);
       notifyListeners();
@@ -144,6 +148,36 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> updateProfile({
+    required String name,
+    required String email,
+    String? avatar,
+  }) async {
+    await _initFuture;
+    _setLoading(true);
+    _clearError();
+
+    try {
+      final updatedUser = await _authService.updateProfile(
+        name: name,
+        email: email,
+        avatar: avatar,
+      );
+
+      _user = UserInfoModel.fromUserData(updatedUser);
+      await _prefs.setString(StorageKeys.userData, jsonEncode(_user!.toJson()));
+
+      _setLoading(false);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _setError(e.toString());
+      _setLoading(false);
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Clear error message
   void _clearError() {
     _errorMessage = null;
@@ -166,12 +200,16 @@ class UserInfoModel {
   final String name;
   final String email;
   final String? phone;
+  final String role;
+  final String? avatar;
 
   UserInfoModel({
     required this.id,
     required this.name,
     required this.email,
     this.phone,
+    this.role = 'user',
+    this.avatar,
   });
 
   factory UserInfoModel.fromUserData(dynamic userData) {
@@ -180,6 +218,8 @@ class UserInfoModel {
       name: userData.name ?? '',
       email: userData.email ?? '',
       phone: userData.phone,
+      role: userData.role ?? 'user',
+      avatar: userData.avatar,
     );
   }
 
@@ -189,6 +229,8 @@ class UserInfoModel {
       name: json['name'] ?? '',
       email: json['email'] ?? '',
       phone: json['phone'],
+      role: json['role'] ?? 'user',
+      avatar: json['avatar'] as String?,
     );
   }
 
@@ -198,6 +240,8 @@ class UserInfoModel {
       'name': name,
       'email': email,
       'phone': phone,
+      'role': role,
+      'avatar': avatar,
     };
   }
 }

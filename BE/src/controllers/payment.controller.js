@@ -33,6 +33,10 @@ const syncPaypalPayment = async (req, res, next) => {
     const { orderId } = req.params;
     const { paypalOrderId } = req.query;
 
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ success: false, message: 'Invalid orderId', data: {} });
+    }
+
     if (!paypalOrderId) {
       return res.status(400).json({ success: false, message: 'paypalOrderId is required', data: {} });
     }
@@ -55,6 +59,10 @@ const capturePaypalPayment = async (req, res, next) => {
     const { orderId } = req.params;
     const paypalOrderId = req.body?.paypalOrderId || req.query?.paypalOrderId;
 
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ success: false, message: 'Invalid orderId', data: {} });
+    }
+
     if (!paypalOrderId) {
       return res.status(400).json({ success: false, message: 'paypalOrderId is required', data: {} });
     }
@@ -75,6 +83,10 @@ const capturePaypalPayment = async (req, res, next) => {
 const expireOrderPayment = async (req, res, next) => {
   try {
     const { orderId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ success: false, message: 'Invalid orderId', data: {} });
+    }
 
     const result = await expirePaymentSession({
       orderId,

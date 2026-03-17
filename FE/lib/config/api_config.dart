@@ -18,6 +18,7 @@ class ApiConfig {
   );
 
   static String? _authToken;
+  static final Dio dio = createDioClient();
 
   static void setAuthToken(String? token) {
     _authToken = token;

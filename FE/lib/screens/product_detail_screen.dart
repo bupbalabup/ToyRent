@@ -11,6 +11,7 @@ class ProductDetailScreen extends StatefulWidget {
   final double rentalPrice;
   final double depositAmount;
   final String? imageUrl;
+  final List<String> images;
   final bool inStock;
 
   const ProductDetailScreen({
@@ -20,6 +21,7 @@ class ProductDetailScreen extends StatefulWidget {
     required this.rentalPrice,
     required this.depositAmount,
     this.imageUrl,
+    this.images = const [],
     required this.inStock,
   }) : super(key: key);
 
@@ -29,14 +31,28 @@ class ProductDetailScreen extends StatefulWidget {
 
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
   late ScrollController _scrollController;
+  late PageController _imagePageController;
   final RentalService _rentalService = RentalService();
   bool _isAppBarCollapsed = false;
   bool _processingCheckout = false;
+  int _currentImageIndex = 0;
+  int _selectedDurationHours = 1;
+
+  List<String> get _displayImages {
+    if (widget.images.isNotEmpty) {
+      return widget.images.where((url) => url.trim().isNotEmpty).toList();
+    }
+    if (widget.imageUrl != null && widget.imageUrl!.trim().isNotEmpty) {
+      return [widget.imageUrl!.trim()];
+    }
+    return const [];
+  }
 
   @override
   void initState() {
     super.initState();
     _scrollController = ScrollController();
+    _imagePageController = PageController();
     _scrollController.addListener(_onScroll);
   }
 
@@ -52,6 +68,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _imagePageController.dispose();
     super.dispose();
   }
 
@@ -131,17 +148,55 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      if (widget.imageUrl != null && widget.imageUrl!.isNotEmpty)
-                        Image.network(
-                          widget.imageUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Icon(
-                              Icons.broken_image_outlined,
-                              size: 48,
-                              color: Color(0xFFDDDDDD),
-                            );
-                          },
+                      if (_displayImages.isNotEmpty)
+                        Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            PageView.builder(
+                              controller: _imagePageController,
+                              itemCount: _displayImages.length,
+                              onPageChanged: (index) {
+                                setState(() {
+                                  _currentImageIndex = index;
+                                });
+                              },
+                              itemBuilder: (context, index) {
+                                return Image.network(
+                                  _displayImages[index],
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return const Icon(
+                                      Icons.broken_image_outlined,
+                                      size: 48,
+                                      color: Color(0xFFDDDDDD),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                            if (_displayImages.length > 1)
+                              Positioned(
+                                left: 0,
+                                right: 0,
+                                bottom: 12,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: List.generate(_displayImages.length, (index) {
+                                    final isActive = index == _currentImageIndex;
+                                    return AnimatedContainer(
+                                      duration: const Duration(milliseconds: 180),
+                                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                                      width: isActive ? 18 : 8,
+                                      height: 8,
+                                      decoration: BoxDecoration(
+                                        color: isActive ? Colors.white : Colors.white70,
+                                        borderRadius: BorderRadius.circular(99),
+                                      ),
+                                    );
+                                  }),
+                                ),
+                              ),
+                          ],
                         )
                       else
                         const Icon(
@@ -278,7 +333,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Daily Rental',
+                            'Rental Price / Hour',
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
@@ -287,7 +342,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '\$${widget.rentalPrice.toStringAsFixed(2)}',
+                            '\$${widget.rentalPrice.toStringAsFixed(2)}/h',
                             style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w700,
@@ -305,7 +360,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Security Deposit',
+                            'Deposit (Refundable)',
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
@@ -319,6 +374,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                               fontSize: 20,
                               fontWeight: FontWeight.w700,
                               color: Color(0xFF1A1A1A),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Returned after toy is returned in good condition.',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF666666),
                             ),
                           ),
                         ],
@@ -459,6 +522,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   Future<void> _startCheckout() async {
+    final durationHours = await _pickRentalDurationHours(initialValue: _selectedDurationHours);
+    if (durationHours == null) {
+      return;
+    }
+
+    setState(() {
+      _selectedDurationHours = durationHours;
+    });
+
     final paymentMethod = await _pickPaymentMethod();
     if (paymentMethod == null) {
       return;
@@ -471,12 +543,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     try {
       final now = DateTime.now();
       final startDate = now.add(const Duration(minutes: 10));
-      final endDate = startDate.add(const Duration(hours: 24));
+      final endDate = startDate.add(Duration(hours: durationHours));
 
       final order = await _rentalService.createOrder(
         toyId: widget.productId,
         quantity: 1,
-        rentalDurationHours: 24,
+        rentalDurationHours: durationHours,
         startDate: startDate,
         endDate: endDate,
         paymentMethod: paymentMethod,
@@ -567,6 +639,68 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 onTap: () => Navigator.of(context).pop('paypal'),
               ),
             ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<int?> _pickRentalDurationHours({required int initialValue}) async {
+    int tempHours = initialValue < 1 ? 1 : initialValue;
+
+    return showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return SafeArea(
+          child: StatefulBuilder(
+            builder: (context, setSheetState) {
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Choose Rental Duration',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        IconButton(
+                          onPressed: tempHours <= 1
+                              ? null
+                              : () => setSheetState(() => tempHours -= 1),
+                          icon: const Icon(Icons.remove_circle_outline),
+                        ),
+                        Text(
+                          '$tempHours hour${tempHours > 1 ? 's' : ''}',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        IconButton(
+                          onPressed: () => setSheetState(() => tempHours += 1),
+                          icon: const Icon(Icons.add_circle_outline),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Estimated rental: \$${(widget.rentalPrice * tempHours).toStringAsFixed(2)} + deposit \$${widget.depositAmount.toStringAsFixed(2)}',
+                      style: const TextStyle(color: Color(0xFF666666)),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.of(context).pop(tempHours),
+                        child: const Text('Continue'),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         );
       },

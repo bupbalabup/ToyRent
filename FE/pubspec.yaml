@@ -15,6 +15,9 @@ dependencies:
   # HTTP Client
   dio: ^5.4.0
   
+  # WebSocket
+  socket_io_client: ^2.0.2
+  
   # Local Storage
   shared_preferences: ^2.2.2
   
@@ -27,6 +30,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   webview_flutter: ^4.9.0
   url_launcher: ^6.3.1
+  flutter_local_notifications: ^17.2.3
+  timezone: ^0.9.4
 
 dev_dependencies:
   flutter_test:

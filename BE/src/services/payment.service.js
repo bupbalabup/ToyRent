@@ -1,7 +1,9 @@
 const mongoose = require('mongoose');
 const Order = require('../models/order.model.js');
 const Payment = require('../models/payment.model.js');
-const { createOrderConfirmedNotification } = require('./notification.service.js');
+const { createOrderStatusNotification } = require('./notification.service.js');
+const { releaseOrderReservations } = require('./order.service.js');
+const { emitPaymentSuccess, emitPaymentFailed } = require('../socket.js');
 
 class AppError extends Error {
   constructor(message, statusCode) {
@@ -11,6 +13,11 @@ class AppError extends Error {
     Error.captureStackTrace(this, this.constructor);
   }
 }
+
+const isTransactionUnsupportedError = (error) => {
+  const message = String(error?.message || '');
+  return message.includes('Transaction numbers are only allowed on a replica set member or mongos');
+};
 
 const PAYPAL_BASE_URL = process.env.PAYPAL_BASE_URL || 'https://api-m.sandbox.paypal.com';
 
@@ -37,14 +44,19 @@ const getPayPalReturnUrls = (returnUrl) => {
 };
 
 const paypalFetch = async ({ path, method = 'GET', accessToken, body }) => {
-  const response = await fetch(`${PAYPAL_BASE_URL}${path}`, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`
-    },
-    body: body ? JSON.stringify(body) : undefined
-  });
+  let response;
+  try {
+    response = await fetch(`${PAYPAL_BASE_URL}${path}`, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+  } catch (error) {
+    throw new AppError('Unable to reach PayPal API', 502);
+  }
 
   const payload = await response.json().catch(() => ({}));
 
@@ -59,14 +71,19 @@ const getPayPalAccessToken = async () => {
   const { clientId, clientSecret } = getPayPalCredentials();
   const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
-  const response = await fetch(`${PAYPAL_BASE_URL}/v1/oauth2/token`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Basic ${basicAuth}`,
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: 'grant_type=client_credentials'
-  });
+  let response;
+  try {
+    response = await fetch(`${PAYPAL_BASE_URL}/v1/oauth2/token`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${basicAuth}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: 'grant_type=client_credentials'
+    });
+  } catch (error) {
+    throw new AppError('Unable to connect to PayPal for access token', 502);
+  }
 
   const payload = await response.json().catch(() => ({}));
 
@@ -168,19 +185,20 @@ const processPaymentCheckout = async ({ orderId, paymentMethod, returnUrl, userI
   const session = await mongoose.startSession();
   let result = null;
 
-  try {
-    await session.withTransaction(async () => {
-      const order = await ensureOrderAccessible({ orderId, userId, role, session });
+  const executeCashCheckout = async (txnSession = null) => {
+    const order = await ensureOrderAccessible({ orderId, userId, role, session: txnSession });
 
-      if (order.paymentStatus === 'paid') {
-        throw new AppError('Order has already been paid', 409);
-      }
+    if (order.paymentStatus === 'paid') {
+      throw new AppError('Order has already been paid', 409);
+    }
 
-      if (order.paymentStatus !== 'pending') {
-        throw new AppError('Order is not payable', 409);
-      }
+    if (order.paymentStatus !== 'pending') {
+      throw new AppError('Order is not payable', 409);
+    }
 
-      const [payment] = await Payment.create(
+    let payment;
+    if (txnSession) {
+      const [createdPayment] = await Payment.create(
         [
           {
             orderId: order._id,
@@ -190,28 +208,63 @@ const processPaymentCheckout = async ({ orderId, paymentMethod, returnUrl, userI
             status: 'success'
           }
         ],
-        { session }
+        { session: txnSession }
       );
-
-      order.paymentMethod = 'cash';
-      order.paymentStatus = 'paid';
-      order.orderStatus = 'confirmed';
-      order.updatedAt = new Date();
-
-      await order.save({ session });
-      await createOrderConfirmedNotification(order, session);
-
-      result = {
-        orderId: order._id.toString(),
-        payment,
-        paymentUrl: null,
+      payment = createdPayment;
+    } else {
+      payment = await Payment.create({
+        orderId: order._id,
+        provider: 'cash',
+        transactionId: `CASH_${Date.now()}`,
         amount: order.totalAmount || order.totalPrice,
-        orderStatus: order.orderStatus,
-        paymentStatus: order.paymentStatus
-      };
-    });
+        status: 'success'
+      });
+    }
+
+    order.paymentMethod = 'cash';
+    order.paymentStatus = 'paid';
+    const oldStatus = order.orderStatus;
+    order.orderStatus = 'ACTIVE';
+    order.updatedAt = new Date();
+
+    if (txnSession) {
+      await order.save({ session: txnSession });
+    } else {
+      await order.save();
+    }
+
+    await createOrderStatusNotification(order.userId, order._id, oldStatus, 'ACTIVE', txnSession || undefined);
+
+    return {
+      orderId: order._id.toString(),
+      payment,
+      paymentUrl: null,
+      amount: order.totalAmount || order.totalPrice,
+      orderStatus: order.orderStatus,
+      paymentStatus: order.paymentStatus
+    };
+  };
+
+  try {
+    try {
+      await session.withTransaction(async () => {
+        result = await executeCashCheckout(session);
+      });
+    } catch (error) {
+      if (!isTransactionUnsupportedError(error)) {
+        throw error;
+      }
+
+      result = await executeCashCheckout();
+    }
   } finally {
     session.endSession();
+  }
+
+  // Emit socket events for cash payment success
+  if (result) {
+    const populatedOrder = await Order.findById(result.orderId).populate({ path: 'items.toyId', select: 'name images' });
+    emitPaymentSuccess(populatedOrder.userId.toString(), populatedOrder);
   }
 
   return result;
@@ -228,8 +281,9 @@ const syncPaypalPaymentStatus = async ({ orderId, paypalOrderId, userId, role })
   const payment = await Payment.findOne({ orderId: order._id, provider: 'paypal', transactionId: paypalOrderId });
 
   if (paypalOrder.status === 'COMPLETED') {
+    const oldStatus = order.orderStatus;
     order.paymentStatus = 'paid';
-    order.orderStatus = 'confirmed';
+    order.orderStatus = 'ACTIVE';
     order.paymentMethod = 'paypal';
     order.updatedAt = new Date();
     await order.save();
@@ -240,7 +294,11 @@ const syncPaypalPaymentStatus = async ({ orderId, paypalOrderId, userId, role })
       await payment.save();
     }
 
-    await createOrderConfirmedNotification(order);
+    await createOrderStatusNotification(order.userId, order._id, oldStatus, 'ACTIVE');
+
+    // Emit socket event for PayPal payment success
+    const populatedOrder = await Order.findById(orderId).populate({ path: 'items.toyId', select: 'name images' });
+    emitPaymentSuccess(order.userId.toString(), populatedOrder);
   } else if (payment && paypalOrder.status === 'PAYER_ACTION_REQUIRED') {
     payment.status = 'pending';
     payment.updatedAt = new Date();
@@ -268,8 +326,9 @@ const capturePaypalPaymentStatus = async ({ orderId, paypalOrderId, userId, role
   const payment = await Payment.findOne({ orderId: order._id, provider: 'paypal', transactionId: paypalOrderId });
 
   if (captureResult.status === 'COMPLETED') {
+    const oldStatus = order.orderStatus;
     order.paymentStatus = 'paid';
-    order.orderStatus = 'confirmed';
+    order.orderStatus = 'ACTIVE';
     order.paymentMethod = 'paypal';
     order.updatedAt = new Date();
     await order.save();
@@ -288,7 +347,7 @@ const capturePaypalPaymentStatus = async ({ orderId, paypalOrderId, userId, role
       });
     }
 
-    await createOrderConfirmedNotification(order);
+    await createOrderStatusNotification(order.userId, order._id, oldStatus, 'ACTIVE');
   }
 
   return {
@@ -314,7 +373,8 @@ const expirePaymentSession = async ({ orderId, userId, role }) => {
   }
 
   order.paymentStatus = 'failed';
-  order.orderStatus = 'cancelled';
+  order.orderStatus = 'CANCELLED';
+  await releaseOrderReservations({ order });
   order.updatedAt = new Date();
   await order.save();
 

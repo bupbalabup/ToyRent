@@ -2,11 +2,31 @@ const Notification = require('../models/notification.model.js');
 
 const getMyNotifications = async (req, res, next) => {
   try {
-    const notifications = await Notification.find({ userId: req.user._id }).sort({ createdAt: -1 });
+    const notifications = await Notification.find({ userId: req.user._id })
+      .sort({ createdAt: -1 })
+      .populate('relatedId');
+    
     return res.status(200).json({
       success: true,
       message: 'Notifications fetched',
       data: { notifications }
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const getUnreadCount = async (req, res, next) => {
+  try {
+    const count = await Notification.countDocuments({
+      userId: req.user._id,
+      isRead: false
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Unread count fetched',
+      data: { unreadCount: count }
     });
   } catch (error) {
     return next(error);
@@ -38,4 +58,26 @@ const markNotificationAsRead = async (req, res, next) => {
   }
 };
 
-module.exports = { getMyNotifications, markNotificationAsRead };
+const markAllAsRead = async (req, res, next) => {
+  try {
+    await Notification.updateMany(
+      { userId: req.user._id, isRead: false },
+      { isRead: true, updatedAt: new Date() }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'All notifications marked as read',
+      data: {}
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+module.exports = { 
+  getMyNotifications, 
+  getUnreadCount,
+  markNotificationAsRead,
+  markAllAsRead
+};

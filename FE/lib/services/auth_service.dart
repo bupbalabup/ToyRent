@@ -8,6 +8,38 @@ class AuthService {
     _dio = ApiConfig.createDioClient();
   }
 
+  Future<UserData> updateProfile({
+    required String name,
+    required String email,
+    String? avatar,
+  }) async {
+    try {
+      final response = await _dio.patch(
+        '/auth/profile',
+        data: {
+          'name': name.trim(),
+          'email': email.toLowerCase().trim(),
+          'avatar': avatar,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = response.data as Map<String, dynamic>;
+        if (data['success'] == true && data['data'] != null) {
+          final user = data['data']['user'] as Map<String, dynamic>? ?? {};
+          return UserData.fromJson(user);
+        }
+        throw AuthException(data['message']?.toString() ?? 'Profile update failed');
+      }
+
+      throw AuthException('Unexpected response status: ${response.statusCode}');
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    } catch (e) {
+      throw AuthException(e.toString());
+    }
+  }
+
   Future<LoginResponse> register({
     required String name,
     required String email,
@@ -163,12 +195,16 @@ class UserData {
   final String name;
   final String email;
   final String? phone;
+  final String role;
+  final String? avatar;
 
   UserData({
     required this.id,
     required this.name,
     required this.email,
     this.phone,
+    this.role = 'user',
+    this.avatar,
   });
 
   factory UserData.fromJson(Map<String, dynamic> json) {
@@ -177,6 +213,8 @@ class UserData {
       name: json['name'] ?? '',
       email: json['email'] ?? '',
       phone: json['phone'],
+      role: json['role'] ?? 'user',
+      avatar: json['avatar'] as String?,
     );
   }
 
@@ -185,5 +223,7 @@ class UserData {
         'name': name,
         'email': email,
         'phone': phone,
+        'role': role,
+        'avatar': avatar,
       };
 }

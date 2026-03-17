@@ -108,7 +108,7 @@ class _ProductCardState extends State<ProductCard>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '\$${widget.rentalPrice.toStringAsFixed(2)}/day',
+                        '\$${widget.rentalPrice.toStringAsFixed(2)}/h',
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -117,7 +117,7 @@ class _ProductCardState extends State<ProductCard>
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Deposit: \$${widget.depositAmount.toStringAsFixed(2)}',
+                        'Refundable deposit: \$${widget.depositAmount.toStringAsFixed(2)}',
                         style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
